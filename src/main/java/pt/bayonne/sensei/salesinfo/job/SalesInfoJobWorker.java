@@ -41,8 +41,7 @@ public class SalesInfoJobWorker {
               "item processing: {}",
               salesInfoDTO); //simples ItemProcessor<SalesInfoDTO,SalesInfoDTO>
           return salesInfoDTO;
-        })
-        .itemWriter(items -> log.info(
+        }).itemWriter(items -> log.info(
             "item writing: {}",
             items)) //simple writer, here you can write into database, file or whatever
         .build();
@@ -76,9 +75,6 @@ public class SalesInfoJobWorker {
     return IntegrationFlow
         .from(outboundChannel())
         .log(LoggingHandler.Level.WARN)
-        .enrich(enricherSpec -> enricherSpec.headerExpression(
-            "batchJobIdentifier",
-            "headers['batchJobIdentifier']"))
         .enrich(enricherSpec -> enricherSpec.headerExpression("sbJobId", "headers['sbJobId']"))
         .handle(producerMessageHandler)
         .get();

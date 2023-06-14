@@ -47,6 +47,7 @@ public class SalesInfoJobManager {
   private final KafkaTemplate<String, SalesInfoDTO> saleInfoKafkaTemplate;
 
   @Bean
+  @Profile("manager1")
   public Job salesManagerJob1(JobRepository jobRepository, Step salesInfoStepManager1) {
     return new JobBuilder("Sales-Info-Manager-job1", jobRepository)
         .incrementer(new RunIdIncrementer())
@@ -55,6 +56,7 @@ public class SalesInfoJobManager {
   }
 
   @Bean
+  @Profile("manager2")
   public Job salesManagerJob2(JobRepository jobRepository, Step salesInfoStepManager2) {
     return new JobBuilder("Sales-Info-Manager-job2", jobRepository)
         .incrementer(new RunIdIncrementer())
@@ -65,6 +67,7 @@ public class SalesInfoJobManager {
 
 
   @Bean
+  @Profile("manager1")
   public TaskletStep salesInfoStepManager1() {
     return this.remoteChunkingManagerStepBuilderFactory
         .get("Manager1-Step")
@@ -77,6 +80,7 @@ public class SalesInfoJobManager {
   }
 
   @Bean
+  @Profile("manager2")
   public TaskletStep salesInfoStepManager2() {
     return this.remoteChunkingManagerStepBuilderFactory
         .get("Manager2-Step")
@@ -110,11 +114,13 @@ public class SalesInfoJobManager {
     var producerMessageHandler = new KafkaProducerMessageHandler<String, SalesInfoDTO>(
         saleInfoKafkaTemplate);
     producerMessageHandler.setTopicExpression(new LiteralExpression("sales-chunkRequests"));
-    return IntegrationFlow.from(outboundChannel()).enrich(enricherSpec -> {
-      enricherSpec.header("batchJobIdentifier", "1");
-    }).enrich(enricherSpec -> {
-      enricherSpec.headerExpression("sbJobId", "payload.jobId.toString()");
-    }).handle(producerMessageHandler).get();
+    return IntegrationFlow
+        .from(outboundChannel())
+        .enrich(enricherSpec -> enricherSpec.headerExpression(
+            "sbJobId",
+            "payload.jobId.toString()"))
+        .handle(producerMessageHandler)
+        .get();
   }
 
   @Bean
@@ -123,6 +129,7 @@ public class SalesInfoJobManager {
   }
 
   @Bean
+  @Profile("manager1")
   public IntegrationFlow inboundFlow1(ConsumerFactory<String, SalesInfoDTO> consumerFactory) {
 
     Map<String, Object> map = new HashMap<>();
@@ -151,6 +158,7 @@ public class SalesInfoJobManager {
   }
 
   @Bean
+  @Profile("manager2")
   public IntegrationFlow inboundFlow2(ConsumerFactory<String, SalesInfoDTO> consumerFactory) {
     Map<String, Object> map = new HashMap<>();
     map.put(ConsumerConfig.GROUP_ID_CONFIG, "cg2");
