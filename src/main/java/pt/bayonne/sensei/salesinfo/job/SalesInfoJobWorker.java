@@ -27,49 +27,60 @@ import pt.bayonne.sensei.salesinfo.dto.SalesInfoDTO;
 @Slf4j
 public class SalesInfoJobWorker {
 
-    private final RemoteChunkingWorkerBuilder<SalesInfoDTO, SalesInfoDTO> remoteChunkingWorkerBuilder;
+  private final RemoteChunkingWorkerBuilder<SalesInfoDTO, SalesInfoDTO> remoteChunkingWorkerBuilder;
 
-    private final KafkaTemplate<String, SalesInfoDTO> saleInfoKafkaTemplate;
+  private final KafkaTemplate<String, SalesInfoDTO> saleInfoKafkaTemplate;
 
-    @Bean
-    public IntegrationFlow salesWorkerStep() {
-        return this.remoteChunkingWorkerBuilder
-                .inputChannel(inboundChannel()) //consumes the chunkRequest<SalesInfoDTO> from kafka
-                .outputChannel(outboundChannel()) //produces the chunkResponse<SalesInfoDTO> to kafka
-                .itemProcessor(salesInfoDTO -> {
-                    log.info("item processing: {}", salesInfoDTO); //simples ItemProcessor<SalesInfoDTO,SalesInfoDTO>
-                    return salesInfoDTO;
-                })
-                .itemWriter(items -> log.info("item writing: {}", items)) //simple writer, here you can write into database, file or whatever
-                .build();
+  @Bean
+  public IntegrationFlow salesWorkerStep() {
+    return this.remoteChunkingWorkerBuilder.inputChannel(inboundChannel()) //consumes the
+        // chunkRequest<SalesInfoDTO> from kafka
+        .outputChannel(outboundChannel()) //produces the chunkResponse<SalesInfoDTO> to kafka
+        .itemProcessor(salesInfoDTO -> {
+          log.info(
+              "item processing: {}",
+              salesInfoDTO); //simples ItemProcessor<SalesInfoDTO,SalesInfoDTO>
+          return salesInfoDTO;
+        })
+        .itemWriter(items -> log.info(
+            "item writing: {}",
+            items)) //simple writer, here you can write into database, file or whatever
+        .build();
 
-    }
+  }
 
-    @Bean
-    public QueueChannel inboundChannel() {
-        return new QueueChannel();
-    }
+  @Bean
+  public QueueChannel inboundChannel() {
+    return new QueueChannel();
+  }
 
-    @Bean
-    public IntegrationFlow inboundFlow(ConsumerFactory<String, SalesInfoDTO> consumerFactory) {
-        return IntegrationFlow.from(Kafka.messageDrivenChannelAdapter(consumerFactory, "sales-chunkRequests"))
-                .log(LoggingHandler.Level.WARN)
-                .channel(inboundChannel())
-                .get();
-    }
+  @Bean
+  public IntegrationFlow inboundFlow(ConsumerFactory<String, SalesInfoDTO> consumerFactory) {
+    return IntegrationFlow
+        .from(Kafka.messageDrivenChannelAdapter(consumerFactory, "sales-chunkRequests"))
+        .log(LoggingHandler.Level.WARN)
+        .channel(inboundChannel())
+        .get();
+  }
 
-    @Bean
-    public DirectChannel outboundChannel() {
-        return new DirectChannel();
-    }
+  @Bean
+  public DirectChannel outboundChannel() {
+    return new DirectChannel();
+  }
 
-    @Bean
-    public IntegrationFlow outboundFlow() {
-        var producerMessageHandler = new KafkaProducerMessageHandler<String, SalesInfoDTO>(saleInfoKafkaTemplate);
-        producerMessageHandler.setTopicExpression(new LiteralExpression("sales-chunkReplies"));
-        return IntegrationFlow.from(outboundChannel())
-                .log(LoggingHandler.Level.WARN)
-                .handle(producerMessageHandler)
-                .get();
-    }
+  @Bean
+  public IntegrationFlow outboundFlow() {
+    var producerMessageHandler = new KafkaProducerMessageHandler<String, SalesInfoDTO>(
+        saleInfoKafkaTemplate);
+    producerMessageHandler.setTopicExpression(new LiteralExpression("sales-chunkReplies"));
+    return IntegrationFlow
+        .from(outboundChannel())
+        .log(LoggingHandler.Level.WARN)
+        .enrich(enricherSpec -> enricherSpec.headerExpression(
+            "batchJobIdentifier",
+            "headers['batchJobIdentifier']"))
+        .enrich(enricherSpec -> enricherSpec.headerExpression("sbJobId", "headers['sbJobId']"))
+        .handle(producerMessageHandler)
+        .get();
+  }
 }
